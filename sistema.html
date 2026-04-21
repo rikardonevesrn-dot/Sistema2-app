@@ -1,0 +1,904 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no"/>
+<meta name="theme-color" content="#030712"/>
+<meta name="mobile-web-app-capable" content="yes"/>
+<meta name="apple-mobile-web-app-capable" content="yes"/>
+<title>◈ SISTEMA</title>
+<link rel="preconnect" href="https://fonts.googleapis.com"/>
+<link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Rajdhani:wght@400;500;600;700&display=swap" rel="stylesheet"/>
+<style>
+  *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent;}
+  html,body,#root{height:100%;background:#030712;}
+  body{overflow-x:hidden;font-family:'Rajdhani',sans-serif;}
+  ::-webkit-scrollbar{width:3px;}::-webkit-scrollbar-thumb{background:#1e3a5f;border-radius:2px;}
+  input,select,textarea,button{font-family:'Rajdhani',sans-serif;}
+  input[type=range]{-webkit-appearance:none;width:100%;height:6px;border-radius:3px;background:rgba(255,255,255,0.08);outline:none;}
+  input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;border-radius:50%;background:#38bdf8;cursor:pointer;box-shadow:0 0 6px #38bdf8;}
+  @keyframes pglow{0%,100%{box-shadow:0 0 14px rgba(56,189,248,0.25)}50%{box-shadow:0 0 30px rgba(56,189,248,0.55)}}
+  @keyframes float{0%,100%{transform:translateY(0)}50%{transform:translateY(-6px)}}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(-10px)}to{opacity:1;transform:translateY(0)}}
+  @keyframes popIn{0%{opacity:0;transform:scale(0.3)}60%{transform:scale(1.18)}100%{opacity:1;transform:scale(1)}}
+  @keyframes shimmer{0%{background-position:200% 0}100%{background-position:-200% 0}}
+  @keyframes spin{from{transform:rotate(0deg)}to{transform:rotate(360deg)}}
+  @keyframes pulse{0%,100%{opacity:1}50%{opacity:0.4}}
+  @keyframes slideUp{from{transform:translateY(100%)}to{transform:translateY(0)}}
+  .glow-card{animation:pglow 3s ease-in-out infinite;}
+  .lv-float{animation:float 3.5s ease-in-out infinite;}
+  .fade-in{animation:fadeIn 0.3s ease-out;}
+  .pop-in{animation:popIn 0.55s cubic-bezier(0.34,1.56,0.64,1) forwards;}
+  .spin{animation:spin 1.2s linear infinite;}
+  .pulse{animation:pulse 1.5s ease-in-out infinite;}
+  .exp-fill{background:linear-gradient(90deg,#0ea5e9,#38bdf8,#7dd3fc,#38bdf8);background-size:200% 100%;animation:shimmer 2.5s linear infinite;}
+  .slide-up{animation:slideUp 0.35s cubic-bezier(0.34,1,0.64,1);}
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+<script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+<script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+<script type="text/babel">
+const {useState,useEffect,useRef,useCallback}=React;
+
+/* ═══ CONSTANTS ═══ */
+const RANKS=['E','D','C','B','A','S','SS','SSS','MONARCA'];
+const RANK_THR=[1,10,20,35,50,65,80,90,99];
+const RC={E:'#9ca3af',D:'#4ade80',C:'#60a5fa',B:'#a78bfa',A:'#fbbf24',S:'#f97316',SS:'#ef4444',SSS:'#ec4899',MONARCA:'#f0f9ff'};
+const RN={E:'Iniciante',D:'Caçador',C:'Guerreiro',B:'Elite',A:'Mestre',S:'Lendário',SS:'Nacional',SSS:'Supremo',MONARCA:'⚔ MONARCA ⚔'};
+const AI_ATTRS={strength:{name:'Força',icon:'⚔️',color:'#ef4444'},agility:{name:'Agilidade',icon:'💨',color:'#34d399'},intelligence:{name:'Inteligência',icon:'📚',color:'#60a5fa'},focus:{name:'Foco',icon:'🎯',color:'#fbbf24'},discipline:{name:'Disciplina',icon:'🔥',color:'#f97316'},vitality:{name:'Vitalidade',icon:'💚',color:'#4ade80'}};
+const RARITY_C={E:'#9ca3af',D:'#4ade80',C:'#60a5fa',B:'#a78bfa',A:'#fbbf24',S:'#f97316'};
+const SHOP=[
+  {id:'skip_workout',name:'Pular Treino',desc:'Pule 1 missão de atividade física sem penalidade',cost:120,icon:'😴',rarity:'C'},
+  {id:'cheat_meal',name:'Refeição Livre',desc:'Coma o que quiser em 1 refeição sem culpa',cost:90,icon:'🍕',rarity:'D'},
+  {id:'hp_potion',name:'Poção de HP',desc:'Recupera 30 HP instantaneamente',cost:80,icon:'💊',rarity:'D'},
+  {id:'shield',name:'Escudo Protetor',desc:'Bloqueia a próxima penalidade de HP',cost:130,icon:'🛡️',rarity:'B'},
+  {id:'double_exp',name:'EXP Dobrado',desc:'Próxima missão concluída dá EXP x2',cost:160,icon:'⚡',rarity:'B'},
+  {id:'skip_read',name:'Dia Sem Leitura',desc:'Pule a missão de leitura hoje',cost:60,icon:'📵',rarity:'E'},
+  {id:'rest_day',name:'Dia de Descanso',desc:'Pule TUDO hoje sem penalidade',cost:380,icon:'🏖️',rarity:'A'},
+  {id:'xp_surge',name:'Surto de EXP',desc:'+250 EXP instantaneamente',cost:220,icon:'💥',rarity:'A'},
+];
+
+/* ═══ UTILITIES ═══ */
+const getRank=l=>{for(let i=RANK_THR.length-1;i>=0;i--)if(l>=RANK_THR[i])return RANKS[i];return'E';};
+const expForLvl=l=>Math.floor(100*Math.pow(1.2,l));
+const calcBMI=(w,h)=>+(w/((h/100)**2)).toFixed(1);
+const bmiSt=b=>b<18.5?{l:'Abaixo do peso',c:'#60a5fa'}:b<25?{l:'Peso normal',c:'#4ade80'}:b<30?{l:'Sobrepeso',c:'#fbbf24'}:{l:'Obesidade',c:'#ef4444'};
+const getStage=l=>l>=80?5:l>=50?4:l>=20?3:l>=10?2:1;
+const ld=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d;}catch{return d;}};
+const sv=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
+const todayKey=()=>new Date().toISOString().split('T')[0];
+const getWeekNum=sd=>Math.max(1,Math.ceil((Date.now()-new Date(sd||Date.now()))/(7*86400000)));
+
+/* ═══ MISSION BUILDER ═══ */
+function buildDailyMissions(week,profile){
+  const w=Math.min(week||1,16);
+  const physMin=[5,7,10,10,12,15,15,20,20,25,25,30,35,40,45,50][w-1];
+  const wGlass=[2,2,3,3,4,4,5,5,6,6,7,7,7,8,8,8][w-1];
+  const rMin=[5,5,5,7,10,10,12,15,15,20,20,25,25,30,30,35][w-1];
+  const df=w<=2?'E':w<=5?'D':w<=9?'C':w<=12?'B':'A';
+  const missions=[
+    {id:'phys',title:'Atividade Física',desc:physMin<=10?`Levante e caminhe ${physMin} minutos (em casa vale!)`:`Mexa seu corpo por ${physMin} minutos`,exp:20+w*5,pen:5+w*2,attr:'strength',diff:df,done:false,failed:false,icon:'🏃',skipped:false},
+    {id:'water',title:'Hidratação',desc:`Beber ${wGlass} copos de água ao longo do dia`,exp:12+w*2,pen:3+w,attr:'vitality',diff:'E',done:false,failed:false,icon:'💧',skipped:false},
+    {id:'read',title:'Leitura',desc:`Ler por ${rMin} minutos (livro, artigo, notícia)`,exp:18+w*3,pen:4+w,attr:'intelligence',diff:w<=4?'E':'D',done:false,failed:false,icon:'📖',skipped:false},
+    {id:'diet',title:'Alimentação',desc:'Seguir o plano alimentar personalizado de hoje',exp:25+w*4,pen:8+w*2,attr:'discipline',diff:w<=3?'E':w<=7?'D':'C',done:false,failed:false,icon:'🥗',skipped:false},
+  ];
+  if(profile?.hobby){
+    missions.push({id:'hobby',title:profile.hobby,desc:`${5+w*2} minutos dedicados ao seu hobby: ${profile.hobby}`,exp:15+w*2,pen:3+w,attr:'focus',diff:'E',done:false,failed:false,icon:'🎯',skipped:false});
+  }
+  return missions;
+}
+
+/* ═══ CLAUDE AI ═══ */
+async function callClaude(messages,system='',maxTokens=800){
+  try{
+    const r=await fetch("https://api.anthropic.com/v1/messages",{
+      method:"POST",
+      headers:{"Content-Type":"application/json"},
+      body:JSON.stringify({model:"claude-sonnet-4-20250514",max_tokens:maxTokens,...(system?{system}:{}),messages})
+    });
+    const d=await r.json();
+    return d.content?.map(c=>c.text||'').join('')||'';
+  }catch(e){return '';}
+}
+
+async function generateInitialPlan(profile){
+  const bmi=calcBMI(profile.weight,profile.height);
+  const sys=`Você é um coach de vida rigoroso estilo Solo Leveling. Responda APENAS JSON válido sem markdown nem backticks.`;
+  const msg=`Perfil do caçador:
+Nome: ${profile.name}, ${profile.age} anos, ${profile.gender==='M'?'Masculino':'Feminino'}
+Peso: ${profile.weight}kg, Altura: ${profile.height}cm, IMC: ${bmi} (${bmiSt(bmi).l})
+Meta: ${profile.goal} | Hobby: ${profile.hobby||'nenhum'}
+Acorda: ${profile.wakeTime} | Dorme: ${profile.sleepTime}
+Comidas favoritas: ${profile.favFoods||'variado'}
+Maior desafio: ${profile.challenge||'preguiça'}
+IMPORTANTE: Perfil EXTREMAMENTE SEDENTÁRIO. Missões começam MUITO FÁCEIS.
+
+Retorne este JSON exato:
+{"dietPlan":{"breakfast":"cafe da manha especifico e simples","morningSnack":"lanche manha","lunch":"almoco detalhado","afternoonSnack":"lanche tarde","dinner":"jantar leve","waterTip":"dica hidratacao personalizada","notes":"nota motivacional sobre dieta"},"welcomeMessage":"mensagem epica 2-3 frases estilo Solo Leveling com o nome da pessoa","personalMotivation":"frase curta e poderosa para a meta desta pessoa","firstBoss":{"title":"nome do boss personalizado para o perfil","desc":"desafio de 5 dias baseado no perfil","reward":"recompensa especifica"}}`;
+  try{
+    const t=await callClaude([{role:'user',content:msg}],sys,1000);
+    const clean=t.replace(/```json|```/g,'').trim();
+    return JSON.parse(clean);
+  }catch{
+    return{
+      dietPlan:{
+        breakfast:'Café leve: 1 pão integral + 1 fruta + chá sem açúcar',
+        morningSnack:'1 copo de água + punhado de castanhas ou 1 fruta pequena',
+        lunch:'Prato colorido: arroz, feijão, proteína magra + salada à vontade',
+        afternoonSnack:'1 fruta ou iogurte natural sem açúcar',
+        dinner:'Jantar leve: sopa, omelete com legumes ou salada com proteína',
+        waterTip:`Encha ${profile.weight>80?8:7} copos de água na geladeira toda manhã como meta visual`,
+        notes:'Comece pequeno. Troque 1 item ruim por semana por uma opção mais saudável.'
+      },
+      welcomeMessage:`${profile.name}, o Sistema te identificou. Sua jornada de transformação começa agora — sem desculpas, sem retrocesso. O único caminho é para frente.`,
+      personalMotivation:'Cada dia que você completa suas missões, você vira uma versão melhor de si mesmo.',
+      firstBoss:{title:'O Despertar do Sedentário',desc:'Complete todas as missões diárias por 5 dias seguidos',reward:'+200 pontos + Título: Primeiro Passo'}
+    };
+  }
+}
+
+/* ═══ AVATAR SVG ═══ */
+function AvatarSVG({level=1,gender='M',size=130}){
+  const stage=getStage(level),rank=getRank(level),rc=RC[rank];
+  const skin='#FDBCB4',hair=gender==='F'?'#7c3aed':'#1c1008';
+  return React.createElement('svg',{width:size,height:size*1.15,viewBox:"0 0 100 115",overflow:"visible",style:{filter:stage>=4?`drop-shadow(0 0 10px ${rc}70)`:stage>=3?'drop-shadow(0 0 5px rgba(56,189,248,0.4))':'none'}},
+    stage>=4&&React.createElement(React.Fragment,null,
+      React.createElement('circle',{cx:50,cy:60,r:48,fill:rc,fillOpacity:0.06}),
+      React.createElement('circle',{cx:50,cy:60,r:43,fill:rc,fillOpacity:0.04})
+    ),
+    /* BODY */
+    stage===1&&React.createElement(React.Fragment,null,
+      React.createElement('ellipse',{cx:50,cy:83,rx:26,ry:21,fill:'#334155'}),
+      React.createElement('ellipse',{cx:50,cy:74,rx:23,ry:17,fill:'#94a3b8'}),
+      [0,5,10,15,20].map(y=>React.createElement('line',{key:y,x1:27,y1:65+y,x2:73,y2:65+y,stroke:'#7c8fa6',strokeWidth:0.7,strokeOpacity:0.5}))
+    ),
+    stage===2&&React.createElement(React.Fragment,null,
+      React.createElement('rect',{x:28,y:64,width:44,height:37,rx:8,fill:'#1d4ed8',fillOpacity:0.9}),
+      React.createElement('rect',{x:28,y:64,width:44,height:10,rx:5,fill:'#3b82f6',fillOpacity:0.7}),
+      React.createElement('ellipse',{cx:21,cy:78,rx:9,ry:18,fill:'#1d4ed8',transform:'rotate(-5 21 78)'}),
+      React.createElement('ellipse',{cx:79,cy:78,rx:9,ry:18,fill:'#1d4ed8',transform:'rotate(5 79 78)'})
+    ),
+    stage===3&&React.createElement(React.Fragment,null,
+      React.createElement('rect',{x:27,y:61,width:46,height:40,rx:6,fill:'#1e3a8a'}),
+      React.createElement('path',{d:'M 27 61 L 50 55 L 73 61 L 73 69 L 50 64 L 27 69 Z',fill:'#1d4ed8',fillOpacity:0.8}),
+      React.createElement('ellipse',{cx:20,cy:76,rx:9,ry:19,fill:'#1e3a8a',transform:'rotate(-7 20 76)'}),
+      React.createElement('ellipse',{cx:80,cy:76,rx:9,ry:19,fill:'#1e3a8a',transform:'rotate(7 80 76)'})
+    ),
+    stage>=4&&React.createElement(React.Fragment,null,
+      React.createElement('rect',{x:25,y:58,width:50,height:43,rx:5,fill:'#0f172a'}),
+      React.createElement('path',{d:'M 25 58 L 50 51 L 75 58 L 75 67 L 50 62 L 25 67 Z',fill:rc,fillOpacity:0.4}),
+      React.createElement('ellipse',{cx:18,cy:76,rx:8,ry:19,fill:'#0f172a',transform:'rotate(-5 18 76)'}),
+      React.createElement('ellipse',{cx:82,cy:76,rx:8,ry:19,fill:'#0f172a',transform:'rotate(5 82 76)'}),
+      stage===5&&React.createElement(React.Fragment,null,
+        React.createElement('circle',{cx:50,cy:68,r:5,fill:rc,fillOpacity:0.5}),
+        React.createElement('circle',{cx:50,cy:68,r:3,fill:rc,fillOpacity:0.9}),
+        React.createElement('path',{d:'M 36 11 L 38 4 L 43 10 L 50 2 L 57 10 L 62 4 L 64 11',stroke:rc,strokeWidth:2,fill:'none',strokeOpacity:0.9})
+      )
+    ),
+    /* NECK */
+    React.createElement('rect',{x:44,y:49,width:12,height:13,rx:4,fill:skin}),
+    /* HEAD */
+    React.createElement('ellipse',{cx:50,cy:33,rx:stage===1?20:18,ry:stage===1?20:18,fill:skin}),
+    /* HAIR */
+    gender==='M'
+      ?React.createElement('path',{d:`M 33 25 Q 36 12 50 9 Q 64 12 67 25 Q 57 14 50 13 Q 43 14 33 25 Z`,fill:hair})
+      :React.createElement('path',{d:`M 30 35 Q 28 14 50 9 Q 72 14 70 35 Q 65 16 50 14 Q 35 16 30 35 Z M 28 35 Q 25 52 29 60 Q 32 52 30 35 M 72 35 Q 75 52 71 60 Q 68 52 70 35`,fill:hair}),
+    /* FACE EXPRESSIONS by stage */
+    stage===1&&React.createElement(React.Fragment,null,
+      React.createElement('ellipse',{cx:43,cy:32,rx:3.5,ry:2.2,fill:'#374151'}),
+      React.createElement('ellipse',{cx:57,cy:32,rx:3.5,ry:2.2,fill:'#374151'}),
+      React.createElement('path',{d:'M 42 40 Q 50 37 58 40',stroke:'#6b7280',strokeWidth:1.5,fill:'none'})
+    ),
+    stage===2&&React.createElement(React.Fragment,null,
+      React.createElement('circle',{cx:43,cy:32,r:3.2,fill:'#1f2937'}),
+      React.createElement('circle',{cx:57,cy:32,r:3.2,fill:'#1f2937'}),
+      React.createElement('circle',{cx:44,cy:31,r:1.1,fill:'white'}),
+      React.createElement('circle',{cx:58,cy:31,r:1.1,fill:'white'}),
+      React.createElement('path',{d:'M 44 40 Q 50 43 56 40',stroke:'#4b5563',strokeWidth:1.5,fill:'none'})
+    ),
+    stage===3&&React.createElement(React.Fragment,null,
+      React.createElement('path',{d:'M 38 29 L 47 32.5',stroke:'#1f2937',strokeWidth:2.2,strokeLinecap:'round'}),
+      React.createElement('path',{d:'M 62 29 L 53 32.5',stroke:'#1f2937',strokeWidth:2.2,strokeLinecap:'round'}),
+      React.createElement('circle',{cx:43,cy:33.5,r:3.5,fill:'#111827'}),
+      React.createElement('circle',{cx:57,cy:33.5,r:3.5,fill:'#111827'}),
+      React.createElement('circle',{cx:44,cy:32.5,r:1.2,fill:'white'}),
+      React.createElement('circle',{cx:58,cy:32.5,r:1.2,fill:'white'})
+    ),
+    stage>=4&&React.createElement(React.Fragment,null,
+      React.createElement('path',{d:'M 36 28 L 47 33',stroke:'#111827',strokeWidth:2.8,strokeLinecap:'round'}),
+      React.createElement('path',{d:'M 64 28 L 53 33',stroke:'#111827',strokeWidth:2.8,strokeLinecap:'round'}),
+      React.createElement('ellipse',{cx:43,cy:34,rx:4,ry:4.2,fill:'#0f172a'}),
+      React.createElement('ellipse',{cx:57,cy:34,rx:4,ry:4.2,fill:'#0f172a'}),
+      React.createElement('circle',{cx:43,cy:33,r:1.8,fill:rc,fillOpacity:0.8}),
+      React.createElement('circle',{cx:57,cy:33,r:1.8,fill:rc,fillOpacity:0.8})
+    ),
+    /* RANK BADGE */
+    React.createElement('rect',{x:67,y:13,width:23,height:17,rx:4,fill:rc,fillOpacity:0.15,stroke:rc,strokeWidth:1,strokeOpacity:0.55}),
+    React.createElement('text',{x:78.5,y:25.5,textAnchor:'middle',fill:rc,fontSize:7.5,fontWeight:'bold',fontFamily:'Orbitron,sans-serif'},rank),
+    React.createElement('text',{x:50,y:113,textAnchor:'middle',fill:rc,fontSize:6.5,letterSpacing:4,fontFamily:'sans-serif'},'★'.repeat(Math.min(5,stage)))
+  );
+}
+
+/* ═══ SHARED STYLES ═══ */
+const S={
+  app:{minHeight:'100vh',background:'#030712',color:'#e2e8f0',fontFamily:"'Rajdhani',sans-serif",paddingBottom:72,position:'relative'},
+  wrap:{maxWidth:480,margin:'0 auto',padding:'0 14px',position:'relative',zIndex:1},
+  card:{background:'rgba(13,17,23,0.97)',border:'1px solid rgba(56,189,248,0.12)',borderRadius:12,padding:14,marginBottom:10},
+  cardGlow:{background:'rgba(13,17,23,0.97)',border:'1px solid rgba(56,189,248,0.3)',borderRadius:12,padding:14,marginBottom:10},
+  navBtn:a=>({flex:1,padding:'10px 0 8px',background:'none',border:'none',color:a?'#38bdf8':'#475569',cursor:'pointer',display:'flex',flexDirection:'column',alignItems:'center',gap:1,fontSize:8,fontWeight:700,letterSpacing:1.5,borderTop:a?'2px solid #38bdf8':'2px solid transparent',transition:'color .2s',fontFamily:"'Rajdhani',sans-serif"}),
+  btn:(c='#38bdf8')=>({background:`${c}15`,border:`1px solid ${c}45`,color:c,borderRadius:8,padding:'8px 14px',cursor:'pointer',fontSize:12,fontWeight:700,letterSpacing:0.5,fontFamily:"'Rajdhani',sans-serif",transition:'background .15s'}),
+  diff:d=>({fontSize:9,fontWeight:900,color:RC[d]||'#9ca3af',background:`${RC[d]||'#9ca3af'}18`,border:`1px solid ${RC[d]||'#9ca3af'}40`,borderRadius:4,padding:'2px 7px',letterSpacing:1.5,fontFamily:"'Orbitron',sans-serif",flexShrink:0}),
+  inp:{background:'rgba(255,255,255,0.04)',border:'1px solid rgba(56,189,248,0.2)',borderRadius:8,padding:'10px 14px',color:'#e2e8f0',fontSize:14,width:'100%',outline:'none',fontFamily:"'Rajdhani',sans-serif"},
+  sel:{background:'#080d14',border:'1px solid rgba(56,189,248,0.2)',borderRadius:8,padding:'10px 14px',color:'#e2e8f0',fontSize:14,width:'100%',fontFamily:"'Rajdhani',sans-serif"},
+  lb:{display:'block',fontSize:10,fontWeight:700,letterSpacing:2,color:'#64748b',marginBottom:6},
+  secTitle:{fontSize:10,fontWeight:700,letterSpacing:3,color:'#475569',textTransform:'uppercase',marginBottom:10},
+  overlay:{position:'fixed',inset:0,background:'rgba(0,0,0,0.9)',zIndex:300,display:'flex',alignItems:'center',justifyContent:'center',flexDirection:'column',cursor:'pointer'},
+};
+
+function BarFill({pct,color,h=7,glow=true}){
+  return React.createElement('div',{style:{height:h,background:'rgba(255,255,255,0.05)',borderRadius:h/2,overflow:'hidden'}},
+    React.createElement('div',{style:{height:'100%',width:`${Math.min(100,Math.max(0,pct))}%`,background:color,borderRadius:h/2,transition:'width .6s',boxShadow:glow?`0 0 6px ${color}`:'none'}})
+  );
+}
+
+/* ═══ ONBOARDING ═══ */
+function Onboarding({onComplete}){
+  const [step,setStep]=useState(0);
+  const [loading,setLoading]=useState(false);
+  const [p,setP]=useState({name:'',age:'',gender:'M',weight:'',height:'',goal:'',hobby:'',wakeTime:'07:00',sleepTime:'23:00',favFoods:'',challenge:''});
+  const up=(k,v)=>setP(prev=>({...prev,[k]:v}));
+  const bmi=p.weight&&p.height?calcBMI(p.weight,p.height):null;
+
+  async function finish(){
+    setLoading(true);
+    const plan=await generateInitialPlan(p);
+    const profile={...p,startDate:Date.now()};
+    sv('sl_profile',profile);
+    sv('sl_aiplan',plan);
+    onComplete(profile,plan);
+  }
+
+  const optStyle=(active)=>({display:'block',width:'100%',padding:'11px 14px',marginBottom:8,borderRadius:8,border:`1px solid ${active?'#38bdf8':'rgba(255,255,255,0.08)'}`,background:active?'rgba(56,189,248,0.15)':'transparent',color:active?'#38bdf8':'#94a3b8',fontSize:13,fontWeight:600,cursor:'pointer',textAlign:'left',fontFamily:"'Rajdhani',sans-serif"});
+
+  const steps=[
+    {title:'O SISTEMA ACORDOU',sub:'Uma nova jornada começa',canNext:true,content:
+      React.createElement('div',{style:{textAlign:'center',padding:'24px 0'}},
+        React.createElement('div',{style:{fontSize:60,marginBottom:16}},React.createElement('span',{className:'pulse'},'⚡')),
+        React.createElement('div',{style:{fontSize:14,color:'#e2e8f0',fontFamily:"'Orbitron',sans-serif",letterSpacing:2,marginBottom:12}},'SISTEMA INICIADO'),
+        React.createElement('p',{style:{color:'#94a3b8',lineHeight:1.8,fontSize:14}},'Você foi detectado pelo Sistema.',React.createElement('br'),'Sua vida está prestes a mudar.',React.createElement('br',null),React.createElement('br'),'Esta entrevista determinará',React.createElement('br'),'suas missões iniciais.')
+      )
+    },
+    {title:'IDENTIFICAÇÃO',sub:'Quem é o Caçador?',canNext:!!(p.name&&p.age),content:
+      React.createElement('div',null,
+        React.createElement('label',{style:S.lb},'NOME DO CAÇADOR'),
+        React.createElement('input',{style:{...S.inp,marginBottom:14},placeholder:'Seu nome completo',value:p.name,onChange:e=>up('name',e.target.value)}),
+        React.createElement('label',{style:S.lb},'IDADE'),
+        React.createElement('input',{style:{...S.inp,marginBottom:14},type:'number',placeholder:'Ex: 25',value:p.age,onChange:e=>up('age',e.target.value)}),
+        React.createElement('label',{style:S.lb},'GÊNERO'),
+        React.createElement('div',{style:{display:'flex',gap:10}},
+          ['M','F'].map(g=>React.createElement('button',{key:g,style:{flex:1,padding:'10px',border:`1px solid ${p.gender===g?'#38bdf8':'rgba(56,189,248,0.2)'}`,borderRadius:8,background:p.gender===g?'rgba(56,189,248,0.18)':'transparent',color:p.gender===g?'#38bdf8':'#64748b',fontWeight:700,fontSize:13,cursor:'pointer',fontFamily:"'Rajdhani',sans-serif"},onClick:()=>up('gender',g)},g==='M'?'♂ Masculino':'♀ Feminino'))
+        )
+      )
+    },
+    {title:'DADOS FÍSICOS',sub:'O Sistema analisa seu corpo',canNext:!!(p.weight&&p.height),content:
+      React.createElement('div',null,
+        React.createElement('label',{style:S.lb},'PESO ATUAL (kg)'),
+        React.createElement('input',{style:{...S.inp,marginBottom:14},type:'number',placeholder:'Ex: 90',value:p.weight,onChange:e=>up('weight',e.target.value)}),
+        React.createElement('label',{style:S.lb},'ALTURA (cm)'),
+        React.createElement('input',{style:{...S.inp,marginBottom:14},type:'number',placeholder:'Ex: 170',value:p.height,onChange:e=>up('height',e.target.value)}),
+        bmi&&React.createElement('div',{style:{background:`${bmiSt(bmi).c}15`,border:`1px solid ${bmiSt(bmi).c}40`,borderRadius:10,padding:14,textAlign:'center'}},
+          React.createElement('div',{style:{fontFamily:"'Orbitron',sans-serif",fontSize:30,fontWeight:900,color:bmiSt(bmi).c}},bmi),
+          React.createElement('div',{style:{fontSize:11,color:bmiSt(bmi).c,letterSpacing:2,fontWeight:700,marginTop:2}},`IMC — ${bmiSt(bmi).l}`)
+        )
+      )
+    },
+    {title:'SUA MISSÃO',sub:'O que você deseja alcançar?',canNext:!!p.goal,content:
+      React.createElement('div',null,
+        React.createElement('label',{style:{...S.lb,marginBottom:10}},'ESCOLHA SUA META PRINCIPAL'),
+        ['Perder peso e emagrecer','Melhorar minha saúde geral','Criar hábitos saudáveis','Ganhar energia e disposição','Me sentir bem comigo mesmo(a)'].map(g=>
+          React.createElement('button',{key:g,style:optStyle(p.goal===g),onClick:()=>up('goal',g)},`${p.goal===g?'◉ ':'○ '}${g}`)
+        )
+      )
+    },
+    {title:'PERSONALIDADE',sub:'O Sistema aprende com você',canNext:true,content:
+      React.createElement('div',null,
+        React.createElement('label',{style:S.lb},'SEU HOBBY / INTERESSE'),
+        React.createElement('input',{style:{...S.inp,marginBottom:14},placeholder:'Ex: violão, desenho, jogos...',value:p.hobby,onChange:e=>up('hobby',e.target.value)}),
+        React.createElement('label',{style:S.lb},'COMIDAS QUE VOCÊ GOSTA'),
+        React.createElement('input',{style:{...S.inp,marginBottom:14},placeholder:'Ex: frango, frutas, macarrão...',value:p.favFoods,onChange:e=>up('favFoods',e.target.value)}),
+        React.createElement('label',{style:S.lb},'SEU MAIOR DESAFIO PESSOAL'),
+        React.createElement('input',{style:{...S.inp},placeholder:'Ex: preguiça, ansiedade, falta de tempo...',value:p.challenge,onChange:e=>up('challenge',e.target.value)})
+      )
+    },
+    {title:'HORÁRIOS',sub:'Programando suas notificações',canNext:true,content:
+      React.createElement('div',null,
+        React.createElement('label',{style:S.lb},'HORÁRIO QUE VOCÊ ACORDA'),
+        React.createElement('input',{style:{...S.inp,marginBottom:14},type:'time',value:p.wakeTime,onChange:e=>up('wakeTime',e.target.value)}),
+        React.createElement('label',{style:S.lb},'HORÁRIO QUE VOCÊ DORME'),
+        React.createElement('input',{style:{...S.inp,marginBottom:14},type:'time',value:p.sleepTime,onChange:e=>up('sleepTime',e.target.value)}),
+        React.createElement('div',{style:{background:'rgba(56,189,248,0.06)',border:'1px solid rgba(56,189,248,0.15)',borderRadius:10,padding:12}},
+          React.createElement('div',{style:{fontSize:10,color:'#64748b',letterSpacing:2,marginBottom:6}},'LEMBRETES PROGRAMADOS'),
+          React.createElement('div',{style:{fontSize:12,color:'#64748b',lineHeight:2}},
+            '🌅 Ao acordar — missão matinal',React.createElement('br'),
+            '💧 +2h — check de hidratação',React.createElement('br'),
+            '⚡ +5h — atividade física',React.createElement('br'),
+            '📖 +8h — missão de leitura',React.createElement('br'),
+            '🌙 +10h — relatório noturno'
+          )
+        )
+      )
+    },
+  ];
+
+  const curr=steps[step];
+  const pct=Math.round(((step)/steps.length)*100);
+
+  return React.createElement('div',{style:{minHeight:'100vh',background:'#030712',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',padding:16}},
+    React.createElement('div',{style:{width:'100%',maxWidth:420}},
+      React.createElement('div',{style:{marginBottom:20}},
+        React.createElement('div',{style:{display:'flex',justifyContent:'space-between',fontSize:10,color:'#64748b',letterSpacing:2,marginBottom:6}},
+          React.createElement('span',{style:{fontFamily:"'Orbitron',sans-serif"}},'ENTREVISTA'),
+          React.createElement('span',null,`${step+1}/${steps.length}`)
+        ),
+        React.createElement('div',{style:{height:3,background:'rgba(56,189,248,0.1)',borderRadius:2}},
+          React.createElement('div',{style:{height:'100%',width:`${pct}%`,background:'linear-gradient(90deg,#0ea5e9,#38bdf8)',borderRadius:2,transition:'width .5s'}})
+        )
+      ),
+      React.createElement('div',{style:{background:'rgba(13,17,23,0.97)',border:'1px solid rgba(56,189,248,0.25)',borderRadius:16,padding:22,boxShadow:'0 0 30px rgba(56,189,248,0.08)'}},
+        React.createElement('div',{style:{fontFamily:"'Orbitron',sans-serif",fontSize:15,fontWeight:900,color:'#38bdf8',letterSpacing:2,marginBottom:4}},curr.title),
+        React.createElement('div',{style:{fontSize:11,color:'#64748b',letterSpacing:1,marginBottom:18}},curr.sub),
+        curr.content,
+        React.createElement('div',{style:{display:'flex',gap:10,marginTop:20}},
+          step>0&&React.createElement('button',{style:{...S.btn('#64748b'),flex:1},onClick:()=>setStep(s=>s-1)},'← Voltar'),
+          React.createElement('button',{
+            style:{flex:2,padding:'12px',background:curr.canNext?'rgba(56,189,248,0.18)':'rgba(255,255,255,0.03)',border:`1px solid ${curr.canNext?'#38bdf8':'rgba(56,189,248,0.1)'}`,borderRadius:10,color:curr.canNext?'#38bdf8':'#475569',fontWeight:900,fontSize:13,cursor:curr.canNext?'pointer':'not-allowed',letterSpacing:2,fontFamily:"'Rajdhani',sans-serif"},
+            onClick:()=>curr.canNext&&(step<steps.length-1?setStep(s=>s+1):finish())
+          },step<steps.length-1?'AVANÇAR →':'⚡ INICIAR SISTEMA')
+        )
+      )
+    ),
+    loading&&React.createElement('div',{style:{position:'fixed',inset:0,background:'rgba(3,7,18,0.97)',display:'flex',flexDirection:'column',alignItems:'center',justifyContent:'center',zIndex:999}},
+      React.createElement('div',{style:{fontSize:48,marginBottom:16,fontFamily:"'Orbitron',sans-serif"},className:'spin'},'⚡'),
+      React.createElement('div',{style:{fontFamily:"'Orbitron',sans-serif",fontSize:13,color:'#38bdf8',letterSpacing:3}},'SISTEMA ANALISANDO...'),
+      React.createElement('div',{style:{fontSize:11,color:'#64748b',marginTop:8}},'Criando seu plano personalizado')
+    )
+  );
+}
+
+/* ═══ MAIN APP ═══ */
+function App(){
+  const [profile,setProfile]=useState(()=>ld('sl_profile',null));
+  const [aiPlan,setAiPlan]=useState(()=>ld('sl_aiplan',null));
+  const [player,setPlayer]=useState(()=>ld('sl_player',{level:1,exp:0,hp:100,maxHp:100,rank:'E',points:0,attributes:{strength:10,agility:10,intelligence:10,focus:10,discipline:10,vitality:10},streak:0,inventory:[],shield:false}));
+  const [missions,setMissions]=useState(()=>ld('sl_missions',{daily:[],lastDay:''}));
+  const [bosses,setBosses]=useState(()=>ld('sl_bosses',[]));
+  const [view,setView]=useState('home');
+  const [overlay,setOverlay]=useState(null);
+  const [toast,setToast]=useState(null);
+  const [questOpen,setQuestOpen]=useState(false);
+  const [questDone,setQuestDone]=useState(()=>ld('sl_questdate','')=== todayKey());
+  const [chatMsgs,setChatMsgs]=useState([]);
+  const [chatInput,setChatInput]=useState('');
+  const [chatLoading,setChatLoading]=useState(false);
+  const [notifLog,setNotifLog]=useState([]);
+  const [qa,setQa]=useState({physical:'',water:'5',diet:'',read:'',energy:'7',note:''});
+  const chatEndRef=useRef(null);
+
+  useEffect(()=>{sv('sl_player',player);},[player]);
+  useEffect(()=>{sv('sl_missions',missions);},[missions]);
+  useEffect(()=>{sv('sl_bosses',bosses);},[bosses]);
+  useEffect(()=>{if(chatEndRef.current)chatEndRef.current.scrollIntoView({behavior:'smooth'});},[chatMsgs]);
+
+  /* Daily reset */
+  useEffect(()=>{
+    if(!profile)return;
+    const today=todayKey();
+    if(missions.lastDay!==today){
+      const week=getWeekNum(profile.startDate);
+      const newDaily=buildDailyMissions(week,profile);
+      setMissions({daily:newDaily,lastDay:today});
+    }
+  },[profile]);
+
+  /* Bosses from AI */
+  useEffect(()=>{
+    if(aiPlan&&bosses.length===0){
+      const fb=aiPlan.firstBoss||{};
+      setBosses([
+        {id:'b0',title:fb.title||'O Despertar do Sedentário',desc:fb.desc||'Complete todas as missões por 5 dias seguidos',flavor:'"Todo grande guerreiro começou do zero."',exp:300,reward:fb.reward||'200 pontos + Título: Primeiro Passo',attrBonus:{discipline:3},progress:0,goal:5,defeated:false,diff:'D'},
+        {id:'b1',title:'Tirano da Preguiça',desc:'Complete todas as missões diárias por 7 dias seguidos sem falhar',flavor:'"A preguiça é o maior dungeon que existe."',exp:600,reward:'Título: Destruidor da Preguiça + 250 pts',attrBonus:{discipline:5},progress:0,goal:7,defeated:false,diff:'B'},
+        {id:'b2',title:'Senhor do Sedentarismo',desc:'Acumule 30 missões físicas completas no total',flavor:'"Seu corpo é o dungeon final."',exp:1000,reward:'+20 Força + Título: Guerreiro Nascido',attrBonus:{strength:20},progress:0,goal:30,defeated:false,diff:'A'},
+      ]);
+    }
+  },[aiPlan]);
+
+  /* Notifications */
+  useEffect(()=>{
+    if(!profile?.wakeTime)return;
+    if(typeof Notification!=='undefined'&&Notification.permission==='default')Notification.requestPermission();
+    const addNotif=(msg)=>{
+      setNotifLog(prev=>[...prev.slice(-4),{id:Date.now(),msg,time:new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'})}]);
+      showToast(msg,'info');
+      if(typeof Notification!=='undefined'&&Notification.permission==='granted')try{new Notification('◈ Sistema',{body:msg});}catch(e){}
+    };
+    const [wH,wM]=profile.wakeTime.split(':').map(Number);
+    const now=new Date();
+    const wake=new Date();wake.setHours(wH,wM,0,0);
+    const delays=[[1*3600000,'☀️ Bom dia! Suas missões do dia estão esperando.'],[2.5*3600000,'💧 Lembrete: já bebeu água hoje?'],[5*3600000,'⚡ Hora da atividade física! Mesmo 5 minutinhos ajudam.'],[8*3600000,'📖 Já leu hoje? Separe alguns minutos.'],[10*3600000,'🌙 Noite chegando — não esqueça do relatório obrigatório!']];
+    const timers=delays.map(([delay,msg])=>{const ms=wake.getTime()+delay-now;return ms>0?setTimeout(()=>addNotif(msg),ms):null;}).filter(Boolean);
+    return()=>timers.forEach(clearTimeout);
+  },[profile]);
+
+  const showToast=(msg,type='info')=>{setToast({msg,type});setTimeout(()=>setToast(null),4000);};
+
+  const gainExp=(amount,attrKey,pts=0)=>{
+    setPlayer(prev=>{
+      let p={...prev,attributes:{...prev.attributes}};
+      let rem=amount,didLevel=false,rankUp=false;
+      while(rem>0){const need=expForLvl(p.level);if(p.exp+rem>=need){rem-=(need-p.exp);p.level+=1;p.exp=0;p.maxHp+=10;p.hp=Math.min(p.maxHp,p.hp+20);didLevel=true;}else{p.exp+=rem;rem=0;}}
+      if(attrKey)p.attributes[attrKey]=Math.min(100,(p.attributes[attrKey]||0)+2);
+      const nr=getRank(p.level);if(nr!==prev.rank){p.rank=nr;rankUp=true;}
+      p.points=(p.points||0)+pts;
+      if(rankUp)setTimeout(()=>setOverlay({type:'rankup',rank:nr}),400);
+      else if(didLevel)setTimeout(()=>setOverlay({type:'levelup',level:p.level}),400);
+      return p;
+    });
+  };
+
+  const completeMission=(id)=>{
+    const m=missions.daily.find(x=>x.id===id);
+    if(!m||m.done||m.failed||m.skipped)return;
+    const updated=missions.daily.map(x=>x.id===id?{...x,done:true}:x);
+    setMissions(prev=>({...prev,daily:updated}));
+    gainExp(m.exp,m.attr,5);
+    showToast(`✅ +${m.exp} EXP — ${m.title}`,'success');
+    if(updated.every(x=>x.done||x.failed||x.skipped)){
+      setTimeout(()=>{gainExp(50,'discipline',20);showToast('🏆 TODAS COMPLETAS! +50 EXP bônus','success');},600);
+    }
+  };
+
+  const failMission=(id)=>{
+    const m=missions.daily.find(x=>x.id===id);
+    if(!m||m.done||m.failed||m.skipped)return;
+    if(player.shield){setPlayer(p=>({...p,shield:false}));showToast('🛡️ Escudo bloqueou a penalidade!','info');setMissions(prev=>({...prev,daily:prev.daily.map(x=>x.id===id?{...x,failed:true}:x)}));return;}
+    setMissions(prev=>({...prev,daily:prev.daily.map(x=>x.id===id?{...x,failed:true}:x)}));
+    setPlayer(prev=>{
+      const na={...prev.attributes};na[m.attr]=Math.max(1,(na[m.attr]||10)-3);
+      const newHp=Math.max(0,prev.hp-m.pen);
+      let newLevel=prev.level;
+      if(newHp===0&&prev.level>1){newLevel=prev.level-1;setTimeout(()=>showToast('💀 HP ZERADO! Você perdeu 1 nível!','danger'),200);}
+      return{...prev,hp:newHp,level:newLevel,rank:getRank(newLevel),attributes:na};
+    });
+    showToast(`💀 PENALIDADE! -${m.pen} HP`,'danger');
+  };
+
+  const buyItem=(item)=>{
+    if(player.points<item.cost){showToast(`Faltam ${item.cost-player.points} pontos!`,'danger');return;}
+    if(item.id==='hp_potion'){setPlayer(p=>({...p,points:p.points-item.cost,hp:Math.min(p.maxHp,p.hp+30)}));showToast('💊 +30 HP recuperado!','success');}
+    else if(item.id==='xp_surge'){setPlayer(p=>({...p,points:p.points-item.cost}));gainExp(250,'discipline',0);showToast('💥 +250 EXP!','success');}
+    else if(item.id==='shield'){setPlayer(p=>({...p,points:p.points-item.cost,shield:true}));showToast('🛡️ Escudo ativo!','success');}
+    else{setPlayer(p=>({...p,points:p.points-item.cost,inventory:[...(p.inventory||[]),item.id]}));showToast(`${item.icon} ${item.name} no inventário!`,'success');}
+  };
+
+  const submitQuestionnaire=(answers)=>{
+    sv('sl_questdate',todayKey());
+    setQuestDone(true);setQuestOpen(false);
+    let pen=0,bonus=0;
+    if(answers.physical==='yes'){bonus+=30;}else if(answers.physical==='no'){failMission('phys');pen+=10;}
+    if(answers.diet==='yes'){bonus+=25;}else if(answers.diet==='no'){failMission('diet');pen+=12;}
+    if(answers.read==='yes')bonus+=15;
+    const wGlass=parseInt(answers.water)||0;
+    if(wGlass>=6)bonus+=20;else if(wGlass<3)pen+=8;
+    if(pen>0){setPlayer(p=>({...p,hp:Math.max(0,p.hp-pen)}));showToast(`⚠️ Relatório: -${pen} HP de penalidades`,'danger');}
+    if(bonus>0){gainExp(bonus,'discipline',Math.floor(bonus/2));setTimeout(()=>showToast(`🌙 Relatório enviado! +${bonus} EXP`,'success'),pen>0?800:0);}
+    const allDone=missions.daily.every(m=>m.done||m.skipped);
+    if(allDone){
+      setBosses(prev=>prev.map(b=>{
+        if((b.id==='b0'||b.id==='b1')&&!b.defeated){
+          const np=b.progress+1;
+          if(np>=b.goal){gainExp(b.exp,null,150);setTimeout(()=>setOverlay({type:'boss',boss:b}),600);return{...b,progress:np,defeated:true};}
+          return{...b,progress:np};
+        }
+        return b;
+      }));
+      setPlayer(p=>({...p,streak:(p.streak||0)+1}));
+    }
+  };
+
+  async function sendChat(msg){
+    if(!msg.trim()||chatLoading)return;
+    const newMsgs=[...chatMsgs,{role:'user',content:msg}];
+    setChatMsgs(newMsgs);setChatInput('');setChatLoading(true);
+    const sys=`Você é o Coach do Sistema, treinador pessoal de vida estilo Solo Leveling. O caçador ${profile?.name} está no nível ${player.level}, rank ${player.rank}. Meta: ${profile?.goal}. Seja direto, motivador e rigoroso. Máximo 3 frases. Responda em PT-BR.`;
+    const reply=await callClaude(newMsgs.map(m=>({role:m.role,content:m.content})),sys,400);
+    setChatMsgs(prev=>[...prev,{role:'assistant',content:reply||'O Sistema está processando. Continue suas missões, Caçador.'}]);
+    setChatLoading(false);
+  }
+
+  /* ── SETUP (onboarding complete) ── */
+  if(!profile){
+    return React.createElement(Onboarding,{onComplete:(prof,plan)=>{
+      setProfile(prof);setAiPlan(plan);
+      const week=getWeekNum(prof.startDate);
+      const newM=buildDailyMissions(week,prof);
+      setMissions({daily:newM,lastDay:todayKey()});
+      sv('sl_missions',{daily:newM,lastDay:todayKey()});
+    }});
+  }
+
+  const expNeeded=expForLvl(player.level);
+  const expPct=Math.min(100,(player.exp/expNeeded)*100);
+  const hpPct=(player.hp/player.maxHp)*100;
+  const rc=RC[player.rank]||'#9ca3af';
+  const diet=aiPlan?.dietPlan||ld('sl_diet',null);
+  const hpColor=hpPct>50?'linear-gradient(90deg,#166534,#4ade80)':hpPct>25?'linear-gradient(90deg,#92400e,#fbbf24)':'linear-gradient(90deg,#7f1d1d,#ef4444)';
+  const hpGlow=hpPct>50?'#4ade80':hpPct>25?'#fbbf24':'#ef4444';
+
+  /* ── HOME VIEW ── */
+  function HomeView(){
+    return React.createElement('div',{className:'fade-in'},
+      /* Player card */
+      React.createElement('div',{className:'glow-card',style:{...S.cardGlow,marginTop:14,border:`1px solid ${rc}30`}},
+        React.createElement('div',{style:{display:'flex',alignItems:'flex-start',gap:14}},
+          React.createElement('div',{className:'lv-float',style:{flexShrink:0}},
+            React.createElement(AvatarSVG,{level:player.level,gender:profile?.gender||'M',size:95})
+          ),
+          React.createElement('div',{style:{flex:1}},
+            React.createElement('div',{style:{fontFamily:"'Orbitron',sans-serif",fontSize:13,fontWeight:900,color:'#e2e8f0',letterSpacing:0.5,marginBottom:2}},profile?.name),
+            React.createElement('div',{style:{color:rc,fontSize:10,fontWeight:700,letterSpacing:2,marginBottom:8}},RN[player.rank]),
+            React.createElement('div',{style:{display:'flex',gap:8,alignItems:'center',marginBottom:6}},
+              React.createElement('div',{style:{fontFamily:"'Orbitron',sans-serif",fontSize:28,fontWeight:900,color:rc,textShadow:`0 0 15px ${rc}60`}},player.level),
+              React.createElement('div',null,React.createElement('div',{style:{fontSize:8,color:'#475569',letterSpacing:2}},'NÍVEL'),React.createElement('div',{style:{fontSize:9,color:'#fbbf24',marginTop:1}},'★'.repeat(Math.min(5,getStage(player.level)))))
+            ),
+            React.createElement('div',{style:{display:'flex',gap:6}},
+              React.createElement('span',{style:{fontSize:9,color:'#38bdf8',background:'rgba(56,189,248,0.1)',borderRadius:4,padding:'2px 7px',fontWeight:700}},`⚡ ${player.points} pts`),
+              React.createElement('span',{style:{fontSize:9,color:'#fbbf24',background:'rgba(251,191,36,0.08)',borderRadius:4,padding:'2px 7px',fontWeight:700}},`🔥 ${player.streak} dias`)
+            )
+          )
+        ),
+        React.createElement('div',{style:{marginTop:10}},
+          React.createElement('div',{style:{display:'flex',justifyContent:'space-between',fontSize:10,color:'#475569',marginBottom:3}},
+            React.createElement('span',null,'❤️ HP'),React.createElement('span',{style:{color:hpPct<30?'#ef4444':'#94a3b8'}},`${player.hp}/${player.maxHp}`)
+          ),
+          React.createElement('div',{style:{height:9,background:'rgba(255,255,255,0.05)',borderRadius:5,overflow:'hidden'}},
+            React.createElement('div',{style:{height:'100%',width:`${hpPct}%`,background:hpColor,borderRadius:5,transition:'width .6s',boxShadow:`0 0 6px ${hpGlow}`}})
+          )
+        ),
+        React.createElement('div',{style:{marginTop:8}},
+          React.createElement('div',{style:{display:'flex',justifyContent:'space-between',fontSize:10,color:'#475569',marginBottom:3}},
+            React.createElement('span',null,'⚡ EXP'),React.createElement('span',null,`${player.exp}/${expNeeded}`)
+          ),
+          React.createElement('div',{style:{height:6,background:'rgba(255,255,255,0.05)',borderRadius:3,overflow:'hidden'}},
+            React.createElement('div',{className:'exp-fill',style:{height:'100%',width:`${expPct}%`,borderRadius:3,transition:'width .6s'}})
+          )
+        )
+      ),
+      /* AI Message */
+      aiPlan?.welcomeMessage&&React.createElement('div',{style:{background:'rgba(56,189,248,0.05)',border:'1px solid rgba(56,189,248,0.18)',borderRadius:10,padding:12,marginBottom:10}},
+        React.createElement('div',{style:{fontSize:9,color:'#38bdf8',letterSpacing:2,fontWeight:700,marginBottom:4}},'◈ O SISTEMA DIZ'),
+        React.createElement('div',{style:{fontSize:12,color:'#94a3b8',fontStyle:'italic',lineHeight:1.6}},`"${aiPlan.welcomeMessage}"`)
+      ),
+      /* Today summary */
+      React.createElement('div',{style:{...S.card}},
+        React.createElement('div',{style:S.secTitle},'MISSÕES DE HOJE'),
+        missions.daily.slice(0,4).map(m=>
+          React.createElement('div',{key:m.id,style:{display:'flex',alignItems:'center',gap:10,marginBottom:8}},
+            React.createElement('span',{style:{fontSize:15}},m.done?'✅':m.failed?'💀':m.skipped?'⏭️':m.icon),
+            React.createElement('span',{style:{flex:1,fontSize:12,color:m.done?'#4ade80':m.failed?'#ef4444':m.skipped?'#64748b':'#94a3b8',textDecoration:m.failed?'line-through':'none'}},m.title),
+            React.createElement('span',{style:{fontSize:10,color:'#38bdf8',fontWeight:700}},`+${m.exp}`)
+          )
+        ),
+        React.createElement('button',{style:{width:'100%',padding:'9px',marginTop:8,background:'rgba(56,189,248,0.08)',border:'1px solid rgba(56,189,248,0.22)',borderRadius:8,color:'#38bdf8',fontWeight:700,fontSize:11,cursor:'pointer',letterSpacing:1,fontFamily:"'Rajdhani',sans-serif"},onClick:()=>setView('missions')},'VER TODAS AS MISSÕES →')
+      ),
+      /* Diet plan */
+      diet&&React.createElement('div',{style:{...S.card,border:'1px solid rgba(34,197,94,0.15)'}},
+        React.createElement('div',{style:S.secTitle},'🥗 PLANO ALIMENTAR DE HOJE'),
+        [['☀️ Café','breakfast'],['🌿 Lanche M.','morningSnack'],['🍽️ Almoço','lunch'],['🍎 Lanche T.','afternoonSnack'],['🌙 Jantar','dinner']].map(([label,key])=>
+          diet[key]&&React.createElement('div',{key,style:{marginBottom:8}},
+            React.createElement('span',{style:{fontSize:10,color:'#4ade80',fontWeight:700,letterSpacing:0.5}},`${label}: `),
+            React.createElement('span',{style:{fontSize:11,color:'#94a3b8'}},diet[key])
+          )
+        ),
+        diet.notes&&React.createElement('div',{style:{marginTop:6,padding:'8px 10px',background:'rgba(251,191,36,0.05)',borderRadius:6,border:'1px solid rgba(251,191,36,0.1)',fontSize:11,color:'#94a3b8'}},`💡 ${diet.notes}`)
+      ),
+      /* Questionnaire CTA */
+      React.createElement('button',{
+        style:{width:'100%',padding:'13px',background:questDone?'rgba(34,197,94,0.08)':'rgba(251,191,36,0.1)',border:`1px solid ${questDone?'rgba(34,197,94,0.3)':'rgba(251,191,36,0.35)'}`,borderRadius:10,color:questDone?'#4ade80':'#fbbf24',fontWeight:700,fontSize:12,cursor:questDone?'default':'pointer',letterSpacing:1,fontFamily:"'Rajdhani',sans-serif"},
+        onClick:()=>!questDone&&setQuestOpen(true)
+      },questDone?'✅ RELATÓRIO DO DIA ENVIADO':'🌙 RELATÓRIO NOTURNO OBRIGATÓRIO'),
+      /* Notif log */
+      notifLog.length>0&&React.createElement('div',{style:{...S.card,marginTop:10}},
+        React.createElement('div',{style:S.secTitle},'NOTIFICAÇÕES DO SISTEMA'),
+        notifLog.slice(-3).map(n=>React.createElement('div',{key:n.id,style:{fontSize:11,color:'#64748b',marginBottom:3}},
+          React.createElement('span',{style:{color:'#38bdf850',marginRight:8}},n.time),n.msg
+        ))
+      )
+    );
+  }
+
+  /* ── MISSIONS VIEW ── */
+  function MissionsView(){
+    const done=missions.daily.filter(m=>m.done).length,failed=missions.daily.filter(m=>m.failed).length;
+    return React.createElement('div',{className:'fade-in',style:{marginTop:14}},
+      React.createElement('div',{style:{...S.card,display:'flex',gap:10,marginBottom:12}},
+        [{v:done,l:'FEITAS',c:'#4ade80'},{v:failed,l:'FALHADAS',c:'#ef4444'},{v:missions.daily.length-done-failed,l:'PENDENTES',c:'#475569'}].map(({v,l,c})=>
+          React.createElement('div',{key:l,style:{flex:1,textAlign:'center'}},
+            React.createElement('div',{style:{fontFamily:"'Orbitron',sans-serif",fontSize:22,fontWeight:900,color:c}},v),
+            React.createElement('div',{style:{fontSize:8,color:'#475569',letterSpacing:1.5}},l)
+          )
+        )
+      ),
+      missions.daily.map(m=>
+        React.createElement('div',{key:m.id,style:{background:m.done?'rgba(34,197,94,0.05)':m.failed?'rgba(239,68,68,0.05)':m.skipped?'rgba(100,116,139,0.05)':'rgba(13,17,23,0.97)',border:`1px solid ${m.done?'rgba(34,197,94,0.25)':m.failed?'rgba(239,68,68,0.25)':m.skipped?'rgba(100,116,139,0.15)':'rgba(56,189,248,0.1)'}`,borderRadius:10,padding:13,marginBottom:9}},
+          React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'flex-start',marginBottom:8}},
+            React.createElement('div',{style:{flex:1}},
+              React.createElement('div',{style:{fontSize:14,fontWeight:700,color:m.done?'#4ade80':m.failed?'#ef4444':m.skipped?'#64748b':'#e2e8f0',display:'flex',alignItems:'center',gap:6,marginBottom:3}},
+                m.done?'✅':m.failed?'💀':m.skipped?'⏭️':m.icon,' ',m.title
+              ),
+              React.createElement('div',{style:{fontSize:11,color:'#475569'}},m.desc)
+            ),
+            React.createElement('span',{style:S.diff(m.diff)},m.diff)
+          ),
+          React.createElement('div',{style:{display:'flex',justifyContent:'space-between',alignItems:'center'}},
+            React.createElement('div',{style:{display:'flex',gap:6}},
+              React.createElement('span',{style:{fontSize:10,color:'#38bdf8',background:'rgba(56,189,248,0.08)',borderRadius:4,padding:'2px 6px',fontWeight:700}},`+${m.exp} EXP`),
+              React.createElement('span',{style:{fontSize:10,color:'#ef4444',background:'rgba(239,68,68,0.08)',borderRadius:4,padding:'2px 6px',fontWeight:700}},`-${m.pen} HP`)
+            ),
+            !m.done&&!m.failed&&!m.skipped&&React.createElement('div',{style:{display:'flex',gap:5}},
+              React.createElement('button',{style:{background:'rgba(34,197,94,0.15)',border:'1px solid rgba(34,197,94,0.4)',color:'#4ade80',borderRadius:7,padding:'6px 11px',cursor:'pointer',fontSize:11,fontWeight:700,fontFamily:"'Rajdhani',sans-serif"},onClick:()=>completeMission(m.id)},'✓ Feito'),
+              React.createElement('button',{style:{background:'rgba(239,68,68,0.12)',border:'1px solid rgba(239,68,68,0.35)',color:'#ef4444',borderRadius:7,padding:'6px 11px',cursor:'pointer',fontSize:11,fontWeight:700,fontFamily:"'Rajdhani',sans-serif"},onClick:()=>failMission(m.id)},'✗ Falhou')
+            )
+          )
+        )
+      ),
+      React.createElement('div',{style:{fontSize:10,fontWeight:700,letterSpacing:3,color:'#475569',marginTop:16,marginBottom:10}},'👹 BOSS RAIDS ATIVOS'),
+      bosses.filter(b=>!b.defeated).map(b=>
+        React.createElement('div',{key:b.id,style:{background:'rgba(13,17,23,0.97)',border:`1px solid ${RC[b.diff]||'#9ca3af'}30`,borderRadius:10,padding:13,marginBottom:9}},
+          React.createElement('div',{style:{display:'flex',justifyContent:'space-between',marginBottom:6}},
+            React.createElement('div',{style:{fontSize:13,fontWeight:700,color:RC[b.diff]}},`👹 ${b.title}`),
+            React.createElement('span',{style:S.diff(b.diff)},b.diff)
+          ),
+          React.createElement('div',{style:{fontSize:11,color:'#64748b',marginBottom:8}},b.desc),
+          React.createElement('div',{style:{height:6,background:'rgba(255,255,255,0.04)',borderRadius:3,overflow:'hidden',marginBottom:6}},
+            React.createElement('div',{style:{height:'100%',width:`${(b.progress/b.goal)*100}%`,background:`linear-gradient(90deg,${RC[b.diff]}88,${RC[b.diff]})`,borderRadius:3,boxShadow:`0 0 6px ${RC[b.diff]}`,transition:'width .5s'}})
+          ),
+          React.createElement('div',{style:{display:'flex',justifyContent:'space-between',fontSize:10}},
+            React.createElement('span',{style:{color:'#475569',fontFamily:"'Orbitron',sans-serif"}},`${b.progress}/${b.goal}`),
+            React.createElement('span',{style:{color:'#fbbf24'}},`🏆 ${b.reward}`)
+          )
+        )
+      )
+    );
+  }
+
+  /* ── SHOP VIEW ── */
+  function ShopView(){
+    return React.createElement('div',{className:'fade-in',style:{marginTop:14}},
+      React.createElement('div',{style:{background:'rgba(251,191,36,0.08)',border:'1px solid rgba(251,191,36,0.22)',borderRadius:10,padding:14,marginBottom:14,display:'flex',justifyContent:'space-between',alignItems:'center'}},
+        React.createElement('div',null,
+          React.createElement('div',{style:{fontSize:9,color:'#64748b',letterSpacing:2,marginBottom:2}},'SEU SALDO'),
+          React.createElement('div',{style:{fontFamily:"'Orbitron',sans-serif",fontSize:28,fontWeight:900,color:'#fbbf24'}},player.points),
+          React.createElement('div',{style:{fontSize:9,color:'#64748b'}},'PONTOS')
+        ),
+        React.createElement('div',{style:{fontSize:10,color:'#64748b',lineHeight:1.8,textAlign:'right'}},
+          '✅ Missão: +5 pts',React.createElement('br'),
+          '🌙 Relatório: +10 pts',React.createElement('br'),
+          '⚡ Level up: +50 pts'
+        )
+      ),
+      player.inventory?.length>0&&React.createElement('div',{style:{...S.card,marginBottom:14}},
+        React.createElement('div',{style:S.secTitle},'🎒 INVENTÁRIO'),
+        React.createElement('div',{style:{display:'flex',gap:8,flexWrap:'wrap'}},
+          player.inventory.map((id,i)=>{const it=SHOP.find(s=>s.id===id);return it?React.createElement('span',{key:i,style:{fontSize:11,background:'rgba(56,189,248,0.08)',border:'1px solid rgba(56,189,248,0.2)',borderRadius:6,padding:'4px 10px',color:'#94a3b8'}},`${it.icon} ${it.name}`):null;})
+        ),
+        player.shield&&React.createElement('div',{style:{marginTop:8,fontSize:11,color:'#a78bfa'}},'🛡️ Escudo Protetor ativo!')
+      ),
+      SHOP.map(item=>
+        React.createElement('div',{key:item.id,style:{background:'rgba(13,17,23,0.97)',border:`1px solid ${RARITY_C[item.rarity]||'#9ca3af'}25`,borderRadius:10,padding:13,marginBottom:9,display:'flex',alignItems:'center',gap:12}},
+          React.createElement('div',{style:{fontSize:26,flexShrink:0,width:42,height:42,display:'flex',alignItems:'center',justifyContent:'center',background:`${RARITY_C[item.rarity]}12`,borderRadius:10,border:`1px solid ${RARITY_C[item.rarity]}25`}},item.icon),
+          React.createElement('div',{style:{flex:1}},
+            React.createElement('div',{style:{display:'flex',alignItems:'center',gap:8,marginBottom:3}},
+              React.createElement('span',{style:{fontSize:13,fontWeight:700,color:'#e2e8f0'}},item.name),
+              React.createElement('span',{style:{fontSize:8,color:RARITY_C[item.rarity],background:`${RARITY_C[item.rarity]}18`,border:`1px solid ${RARITY_C[item.rarity]}35`,borderRadius:3,padding:'1px 5px',letterSpacing:1.5,fontFamily:"'Orbitron',sans-serif"}},item.rarity)
+            ),
+            React.createElement('div',{style:{fontSize:11,color:'#475569'}},item.desc)
+          ),
+          React.createElement('button',{
+            style:{flexShrink:0,padding:'8px 12px',background:player.points>=item.cost?'rgba(251,191,36,0.15)':'rgba(255,255,255,0.03)',border:`1px solid ${player.points>=item.cost?'rgba(251,191,36,0.4)':'rgba(255,255,255,0.08)'}`,borderRadius:8,color:player.points>=item.cost?'#fbbf24':'#475569',fontWeight:700,fontSize:11,cursor:player.points>=item.cost?'pointer':'not-allowed',fontFamily:"'Rajdhani',sans-serif",textAlign:'center'},
+            onClick:()=>buyItem(item)
+          },React.createElement('span',null,item.cost),React.createElement('br'),React.createElement('span',{style:{fontSize:8,letterSpacing:1}},'PTS'))
+        )
+      )
+    );
+  }
+
+  /* ── CHAT VIEW ── */
+  function ChatView(){
+    return React.createElement('div',{className:'fade-in',style:{marginTop:14}},
+      React.createElement('div',{style:{...S.card,border:'1px solid rgba(168,85,247,0.25)',marginBottom:10}},
+        React.createElement('div',{style:{fontSize:9,color:'#a855f7',letterSpacing:2,fontWeight:700,marginBottom:4}},'◈ COACH DO SISTEMA — IA'),
+        React.createElement('div',{style:{fontSize:12,color:'#64748b'}},'Seu coach pessoal adaptado ao seu perfil e progresso.')
+      ),
+      React.createElement('div',{style:{height:320,overflowY:'auto',background:'rgba(13,17,23,0.97)',border:'1px solid rgba(56,189,248,0.1)',borderRadius:12,padding:14,marginBottom:10}},
+        chatMsgs.length===0&&React.createElement('div',{style:{textAlign:'center',padding:'40px 20px',color:'#475569',fontSize:12}},'Fale com o Coach. Peça motivação, ajuste de missões ou dicas de dieta.'),
+        chatMsgs.map((m,i)=>
+          React.createElement('div',{key:i,style:{marginBottom:12,display:'flex',justifyContent:m.role==='user'?'flex-end':'flex-start'}},
+            React.createElement('div',{style:{maxWidth:'82%',background:m.role==='user'?'rgba(56,189,248,0.15)':'rgba(168,85,247,0.1)',border:`1px solid ${m.role==='user'?'rgba(56,189,248,0.25)':'rgba(168,85,247,0.2)'}`,borderRadius:10,padding:'9px 13px',fontSize:12,color:m.role==='user'?'#e2e8f0':'#d4a8ff',lineHeight:1.6}},m.content)
+          )
+        ),
+        chatLoading&&React.createElement('div',{className:'pulse',style:{textAlign:'center',color:'#a855f7',fontSize:22}},'◈'),
+        React.createElement('div',{ref:chatEndRef})
+      ),
+      React.createElement('div',{style:{display:'flex',gap:8}},
+        React.createElement('input',{style:{...S.inp,flex:1},placeholder:'Fale com o Coach...',value:chatInput,onChange:e=>setChatInput(e.target.value),onKeyDown:e=>e.key==='Enter'&&sendChat(chatInput)}),
+        React.createElement('button',{style:{padding:'10px 16px',background:'rgba(168,85,247,0.18)',border:'1px solid rgba(168,85,247,0.4)',borderRadius:8,color:'#a855f7',fontWeight:700,cursor:'pointer',fontSize:16},onClick:()=>sendChat(chatInput)},'➤')
+      ),
+      React.createElement('div',{style:{display:'flex',gap:6,flexWrap:'wrap',marginTop:8}},
+        ['Me motive!','Tô com preguiça 😅','Dica de alimentação','Ajuste meu treino'].map(q=>
+          React.createElement('button',{key:q,style:{padding:'6px 10px',background:'transparent',border:'1px solid rgba(56,189,248,0.12)',borderRadius:7,color:'#64748b',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:"'Rajdhani',sans-serif'},onClick:()=>sendChat(q)},q)
+        )
+      )
+    );
+  }
+
+  /* ── PROFILE VIEW ── */
+  function ProfileView(){
+    const bmi=profile?.weight&&profile?.height?calcBMI(profile.weight,profile.height):null;
+    return React.createElement('div',{className:'fade-in',style:{marginTop:14}},
+      React.createElement('div',{style:{...S.card,border:`1px solid ${rc}25`,display:'flex',gap:16,alignItems:'center'}},
+        React.createElement(AvatarSVG,{level:player.level,gender:profile?.gender||'M',size:80}),
+        React.createElement('div',null,
+          React.createElement('div',{style:{fontFamily:"'Orbitron',sans-serif",fontSize:14,color:'#e2e8f0',fontWeight:900}},profile?.name),
+          React.createElement('div',{style:{color:rc,fontSize:11,letterSpacing:2,marginTop:2}},RN[player.rank]),
+          bmi&&React.createElement('div',{style:{fontSize:11,color:bmiSt(bmi).c,marginTop:4}},`IMC: ${bmi} — ${bmiSt(bmi).l}`),
+          React.createElement('div',{style:{fontSize:11,color:'#64748b',marginTop:2}},`${profile?.age} anos · ${profile?.weight}kg · ${profile?.height}cm`)
+        )
+      ),
+      React.createElement('div',{style:S.card},
+        React.createElement('div',{style:S.secTitle},'ATRIBUTOS DO CAÇADOR'),
+        Object.entries(player.attributes).map(([k,v])=>
+          React.createElement('div',{key:k,style:{display:'flex',alignItems:'center',marginBottom:10}},
+            React.createElement('span',{style:{fontSize:15,width:22}},AI_ATTRS[k]?.icon),
+            React.createElement('span',{style:{width:90,fontSize:11,color:'#64748b'}},AI_ATTRS[k]?.name),
+            React.createElement('div',{style:{flex:1,height:6,background:'rgba(255,255,255,0.04)',borderRadius:3,overflow:'hidden',marginLeft:8}},
+              React.createElement('div',{style:{height:'100%',width:`${Math.min(100,v)}%`,background:AI_ATTRS[k]?.color,borderRadius:3,boxShadow:`0 0 4px ${AI_ATTRS[k]?.color}`,transition:'width .5s'}})
+            ),
+            React.createElement('span',{style:{width:28,textAlign:'right',fontFamily:"'Orbitron',sans-serif",fontSize:10,fontWeight:700,color:AI_ATTRS[k]?.color,marginLeft:6}},v)
+          )
+        )
+      ),
+      React.createElement('div',{style:S.card},
+        React.createElement('div',{style:S.secTitle},'PROGRESSÃO DE RANK'),
+        React.createElement('div',{style:{display:'flex',alignItems:'center',gap:3,overflowX:'auto',paddingBottom:4}},
+          RANKS.map((r,i)=>
+            React.createElement('div',{key:r,style:{display:'flex',alignItems:'center'}},
+              React.createElement('div',{style:{display:'flex',flexDirection:'column',alignItems:'center',gap:3}},
+                React.createElement('div',{style:{display:'inline-flex',alignItems:'center',justifyContent:'center',width:28,height:28,borderRadius:6,border:`2px solid ${RC[r]}`,color:RC[r],fontWeight:900,fontSize:8,background:`${RC[r]}15`,fontFamily:"'Orbitron',sans-serif",opacity:player.rank===r?1:player.level>=RANK_THR[i]?0.5:0.2,boxShadow:player.rank===r?`0 0 12px ${RC[r]}`:'none'}},r[0]),
+                React.createElement('span',{style:{fontSize:7,color:'#475569'}},`Lv${RANK_THR[i]}`)
+              ),
+              i<RANKS.length-1&&React.createElement('div',{style:{width:8,height:1,background:'rgba(255,255,255,0.06)',margin:'0 1px',marginBottom:12}})
+            )
+          )
+        )
+      ),
+      React.createElement('button',{
+        style:{width:'100%',padding:'12px',background:'rgba(239,68,68,0.08)',border:'1px solid rgba(239,68,68,0.2)',borderRadius:8,color:'#ef4444',fontWeight:700,fontSize:12,cursor:'pointer',letterSpacing:1,fontFamily:"'Rajdhani',sans-serif"},
+        onClick:()=>{if(window.confirm('REINICIAR TUDO? Todo progresso será apagado permanentemente.')){{localStorage.clear();window.location.reload();}}}
+      },'🔴 REINICIAR SISTEMA COMPLETO')
+    );
+  }
+
+  /* ── QUESTIONNAIRE MODAL ── */
+  function QuestModal(){
+    const canSubmit=qa.physical&&qa.diet&&qa.read;
+    return React.createElement('div',{style:{position:'fixed',inset:0,background:'rgba(0,0,0,0.92)',zIndex:200,display:'flex',alignItems:'flex-end',justifyContent:'center'}},
+      React.createElement('div',{className:'slide-up',style:{width:'100%',maxWidth:480,background:'#0a0f1a',border:'1px solid rgba(56,189,248,0.25)',borderRadius:'16px 16px 0 0',padding:20,maxHeight:'90vh',overflowY:'auto'}},
+        React.createElement('div',{style:{fontFamily:"'Orbitron',sans-serif",fontSize:13,color:'#38bdf8',letterSpacing:2,marginBottom:4}},'🌙 RELATÓRIO NOTURNO'),
+        React.createElement('div',{style:{fontSize:11,color:'#ef4444',marginBottom:18,lineHeight:1.6}},'⚠️ OBRIGATÓRIO. Não responder = -30 HP e -5 Disciplina.'),
+        [
+          {q:'Completou a atividade física hoje?',k:'physical',opts:['yes','partial','no'],labels:['✅ Sim, fiz!','😅 Parcialmente','❌ Não fiz']},
+          {q:'Seguiu o plano alimentar?',k:'diet',opts:['yes','mostly','no'],labels:['✅ Segui o plano','🤏 Mais ou menos','❌ Fugi da dieta']},
+          {q:'Leu algo hoje?',k:'read',opts:['yes','no'],labels:['✅ Sim, li!','❌ Não li']},
+        ].map(({q,k,opts,labels})=>
+          React.createElement('div',{key:k,style:{marginBottom:16}},
+            React.createElement('div',{style:{fontSize:12,color:'#e2e8f0',fontWeight:700,marginBottom:8}},q),
+            React.createElement('div',{style:{display:'flex',gap:6,flexWrap:'wrap'}},
+              opts.map((o,i)=>
+                React.createElement('button',{key:o,style:{padding:'7px 11px',background:qa[k]===o?'rgba(56,189,248,0.2)':'rgba(255,255,255,0.03)',border:`1px solid ${qa[k]===o?'#38bdf8':'rgba(56,189,248,0.12)'}`,borderRadius:7,color:qa[k]===o?'#38bdf8':'#64748b',fontSize:11,fontWeight:700,cursor:'pointer',fontFamily:"'Rajdhani',sans-serif"},onClick:()=>setQa(p=>({...p,[k]:o}))},labels[i])
+              )
+            )
+          )
+        ),
+        React.createElement('div',{style:{marginBottom:14}},
+          React.createElement('div',{style:{fontSize:12,color:'#e2e8f0',fontWeight:700,marginBottom:6}},`💧 Copos de água: `,React.createElement('span',{style:{color:'#38bdf8',fontFamily:"'Orbitron',sans-serif"}},qa.water)),
+          React.createElement('input',{type:'range',min:0,max:12,value:qa.water,onChange:e=>setQa(p=>({...p,water:e.target.value})),style:{width:'100%',accentColor:'#38bdf8'}})
+        ),
+        React.createElement('div',{style:{marginBottom:14}},
+          React.createElement('div',{style:{fontSize:12,color:'#e2e8f0',fontWeight:700,marginBottom:6}},`⚡ Energia hoje: `,React.createElement('span',{style:{color:'#fbbf24',fontFamily:"'Orbitron',sans-serif"}},`${qa.energy}/10`)),
+          React.createElement('input',{type:'range',min:1,max:10,value:qa.energy,onChange:e=>setQa(p=>({...p,energy:e.target.value})),style:{width:'100%',accentColor:'#fbbf24'}})
+        ),
+        React.createElement('div',{style:{marginBottom:16}},
+          React.createElement('div',{style:{fontSize:12,color:'#e2e8f0',fontWeight:700,marginBottom:6}},'📝 Nota para amanhã (opcional)'),
+          React.createElement('textarea',{style:{...S.inp,minHeight:55,resize:'vertical',lineHeight:1.5},placeholder:'O que quer melhorar amanhã?',value:qa.note,onChange:e=>setQa(p=>({...p,note:e.target.value}))})
+        ),
+        React.createElement('button',{
+          style:{width:'100%',padding:'13px',background:canSubmit?'rgba(56,189,248,0.18)':'rgba(255,255,255,0.03)',border:`1px solid ${canSubmit?'#38bdf8':'rgba(56,189,248,0.1)'}`,borderRadius:10,color:canSubmit?'#38bdf8':'#475569',fontWeight:900,fontSize:13,cursor:canSubmit?'pointer':'not-allowed',letterSpacing:2,fontFamily:"'Rajdhani',sans-serif"},
+          onClick:()=>canSubmit&&submitQuestionnaire(qa)
+        },'ENVIAR RELATÓRIO →')
+      )
+    );
+  }
+
+  /* ── OVERLAY ── */
+  function Overlay(){
+    if(!overlay)return null;
+    return React.createElement('div',{style:S.overlay,onClick:()=>setOverlay(null)},
+      React.createElement('div',{className:'pop-in',style:{textAlign:'center',padding:40}},
+        overlay.type==='levelup'&&React.createElement(React.Fragment,null,
+          React.createElement('div',{style:{fontSize:56,marginBottom:6}},'⚡'),
+          React.createElement('div',{style:{fontFamily:"'Orbitron',sans-serif",fontSize:11,color:'#475569',letterSpacing:4}},'LEVEL UP'),
+          React.createElement('div',{style:{fontFamily:"'Orbitron',sans-serif",fontSize:80,fontWeight:900,color:'#38bdf8',lineHeight:1,textShadow:'0 0 50px #38bdf8,0 0 100px #38bdf840'}},overlay.level),
+          React.createElement('div',{style:{color:'#475569',fontSize:12,marginTop:10}},'Toque para continuar')
+        ),
+        overlay.type==='rankup'&&React.createElement(React.Fragment,null,
+          React.createElement('div',{style:{fontSize:52,marginBottom:6}},'🏆'),
+          React.createElement('div',{style:{fontFamily:"'Orbitron',sans-serif",fontSize:11,color:'#475569',letterSpacing:4}},'RANK UP'),
+          React.createElement('div',{style:{fontFamily:"'Orbitron',sans-serif",fontSize:80,fontWeight:900,color:RC[overlay.rank],lineHeight:1,textShadow:`0 0 50px ${RC[overlay.rank]},0 0 100px ${RC[overlay.rank]}40`}},overlay.rank),
+          React.createElement('div',{style:{color:RC[overlay.rank],fontSize:16,fontWeight:700,letterSpacing:2,marginTop:8}},RN[overlay.rank]),
+          React.createElement('div',{style:{color:'#475569',fontSize:12,marginTop:10}},'Toque para continuar')
+        ),
+        overlay.type==='boss'&&React.createElement(React.Fragment,null,
+          React.createElement('div',{style:{fontSize:48,marginBottom:6}},'💀'),
+          React.createElement('div',{style:{fontFamily:"'Orbitron',sans-serif",fontSize:11,color:'#475569',letterSpacing:3}},'BOSS DERROTADO'),
+          React.createElement('div',{style:{fontFamily:"'Orbitron',sans-serif",fontSize:20,fontWeight:900,color:'#fbbf24',lineHeight:1.4,marginTop:10,maxWidth:280}},overlay.boss?.title),
+          React.createElement('div',{style:{color:'#4ade80',fontSize:15,marginTop:10,fontWeight:700}},`+${overlay.boss?.exp} EXP`),
+          React.createElement('div',{style:{color:'#fbbf24',fontSize:13,marginTop:4}},`🏆 ${overlay.boss?.reward}`),
+          React.createElement('div',{style:{color:'#475569',fontSize:12,marginTop:12}},'Toque para continuar')
+        )
+      )
+    );
+  }
+
+  const NAV=[{id:'home',icon:'◈',label:'HOME'},{id:'missions',icon:'⚔',label:'MISSÕES'},{id:'shop',icon:'🏪',label:'LOJA'},{id:'chat',icon:'◉',label:'COACH'},{id:'profile',icon:'👤',label:'PERFIL'}];
+
+  return React.createElement('div',{style:S.app},
+    React.createElement('div',{style:{position:'fixed',inset:0,pointerEvents:'none',background:'radial-gradient(ellipse at 50% -10%,rgba(56,189,248,0.08) 0%,transparent 55%),radial-gradient(ellipse at 85% 85%,rgba(168,85,247,0.05) 0%,transparent 45%)',zIndex:0}}),
+    /* HEADER */
+    React.createElement('div',{style:{background:'rgba(3,7,18,0.96)',borderBottom:'1px solid rgba(56,189,248,0.13)',padding:'11px 16px',position:'sticky',top:0,zIndex:50,display:'flex',alignItems:'center',justifyContent:'space-between',backdropFilter:'blur(12px)'}},
+      React.createElement('div',{style:{fontFamily:"'Orbitron',sans-serif",fontSize:13,fontWeight:900,color:'#38bdf8',letterSpacing:3}},'◈ SISTEMA'),
+      React.createElement('div',{style:{display:'flex',alignItems:'center',gap:10}},
+        !questDone&&new Date().getHours()>=18&&React.createElement('button',{style:{fontSize:9,color:'#fbbf24',background:'rgba(251,191,36,0.1)',border:'1px solid rgba(251,191,36,0.3)',borderRadius:6,padding:'4px 8px',cursor:'pointer',fontFamily:"'Rajdhani',sans-serif",fontWeight:700},onClick:()=>setQuestOpen(true)},'🌙 RELATÓRIO'),
+        React.createElement('div',{style:{width:7,height:7,borderRadius:'50%',background:'#4ade80',boxShadow:'0 0 5px #4ade80'}}),
+        React.createElement('span',{style:{fontSize:9,color:'#475569',letterSpacing:1.5}},'ONLINE')
+      )
+    ),
+    /* TOAST */
+    toast&&React.createElement('div',{style:{position:'fixed',top:54,left:'50%',transform:'translateX(-50%)',zIndex:150,background:toast.type==='success'?'rgba(34,197,94,0.15)':toast.type==='danger'?'rgba(239,68,68,0.15)':'rgba(56,189,248,0.12)',border:`1px solid ${toast.type==='success'?'#4ade8055':toast.type==='danger'?'#ef444455':'#38bdf835'}`,borderRadius:10,padding:'9px 18px',color:'#e2e8f0',fontSize:12,fontWeight:700,whiteSpace:'nowrap',backdropFilter:'blur(12px)',zIndex:150,animation:'fadeIn .2s ease-out'}},toast.msg),
+    /* CONTENT */
+    React.createElement('div',{style:{...S.wrap}},
+      view==='home'&&React.createElement(HomeView,null),
+      view==='missions'&&React.createElement(MissionsView,null),
+      view==='shop'&&React.createElement(ShopView,null),
+      view==='chat'&&React.createElement(ChatView,null),
+      view==='profile'&&React.createElement(ProfileView,null),
+    ),
+    /* NAV */
+    React.createElement('nav',{style:{position:'fixed',bottom:0,left:0,right:0,background:'rgba(3,7,18,0.97)',borderTop:'1px solid rgba(56,189,248,0.15)',display:'flex',zIndex:100,backdropFilter:'blur(12px)'}},
+      NAV.map(n=>
+        React.createElement('button',{key:n.id,style:S.navBtn(view===n.id),onClick:()=>setView(n.id)},
+          React.createElement('span',{style:{fontSize:17}},n.icon),n.label
+        )
+      )
+    ),
+    questOpen&&React.createElement(QuestModal,null),
+    React.createElement(Overlay,null)
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(React.createElement(App));
+</script>
+</body>
+</html>
